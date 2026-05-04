@@ -1,5 +1,7 @@
 import os
-from flask import Flask, request, jsonify, render_template, Response, stream_with_context
+import fitz  # PyMuPDF
+import io
+from flask import Flask, request, jsonify, render_template, Response, stream_with_context, send_file
 from dotenv import load_dotenv
 from groq import Groq
 from tavily import TavilyClient
@@ -8,6 +10,7 @@ import json
 load_dotenv()
 
 app = Flask(__name__)
+app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024  # 16MB limit
 
 # AI Brain
 api_key = os.environ.get("GROQ_API_KEY")
@@ -20,17 +23,24 @@ tavily = TavilyClient(api_key=tavily_key) if tavily_key else None
 # Kia's Memory
 conversation_history = []
 
+# Uploaded file storage
+uploaded_file_content = ""
+uploaded_file_name = ""
+uploaded_file_bytes = None
+
 def should_search(message):
     search_keywords = [
         "today", "latest", "current", "now", "recent",
         "news", "weather", "price", "score", "update",
         "what happened", "right now", "this week",
-        "this month", "this year", "2024", "2025"
+        "this month", "this year", "2024", "2025", "2026"
     ]
     message_lower = message.lower()
     return any(keyword in message_lower for keyword in search_keywords)
 
 def search_web(query):
+    if not tavily:
+        return ""
     try:
         results = tavily.search(query=query, max_results=3)
         search_summary = ""
@@ -41,12 +51,91 @@ def search_web(query):
     except Exception as e:
         return ""
 
+def extract_pdf_text_from_bytes(pdf_bytes):
+    """
+    Reads PDF bytes and extracts all text.
+    Returns the text as a string.
+    """
+    try:
+        pdf_document = fitz.open(stream=pdf_bytes, filetype="pdf")
+        full_text = ""
+        for page_num in range(len(pdf_document)):
+            page = pdf_document.load_page(page_num)
+            full_text += f"\n--- Page {page_num + 1} ---\n"
+            full_text += page.get_text()
+        pdf_document.close()
+        return full_text
+    except Exception as e:
+        return ""
+
 @app.route("/")
 def home():
     return render_template("index.html")
 
+@app.route("/upload", methods=["POST"])
+def upload():
+    global uploaded_file_content, uploaded_file_name, uploaded_file_bytes
+
+    if "file" not in request.files:
+        return jsonify({"error": "No file uploaded"}), 400
+
+    file = request.files["file"]
+
+    if file.filename == "":
+        return jsonify({"error": "No file selected"}), 400
+
+    # Read file
+    if file.filename.endswith(".pdf"):
+        file_bytes = file.read()
+        uploaded_file_bytes = file_bytes
+        uploaded_file_content = extract_pdf_text_from_bytes(file_bytes)
+    elif file.filename.endswith(".txt"):
+        uploaded_file_content = file.read().decode("utf-8")
+        uploaded_file_bytes = None
+    else:
+        return jsonify({"error": "Please upload a PDF or TXT file"}), 400
+
+    if not uploaded_file_content:
+        return jsonify({"error": "Could not read file"}), 400
+
+    uploaded_file_name = file.filename
+
+    # Count words and pages
+    word_count = len(uploaded_file_content.split())
+    page_count = uploaded_file_content.count("--- Page ")
+    if page_count == 0:
+        page_count = 1
+
+    return jsonify({
+        "success": True,
+        "message": f"📄 Got it! I've finished reading '{file.filename}' — {page_count} page(s) and {word_count} words.\n\nYou can ask me to:\n• Summarise the document\n• Answer specific questions\n• Pull out key details\n\nWhat would you like to know? 😊"
+    })
+
+@app.route("/download-file", methods=["GET"])
+def download_file():
+    """Serves the uploaded file for download"""
+    global uploaded_file_bytes, uploaded_file_name
+    if not uploaded_file_bytes:
+        return "No file uploaded", 404
+    return send_file(
+        io.BytesIO(uploaded_file_bytes),
+        mimetype="application/pdf",
+        as_attachment=False,
+        download_name=uploaded_file_name
+    )
+
+@app.route("/clear-file", methods=["POST"])
+def clear_file():
+    global uploaded_file_content, uploaded_file_name, uploaded_file_bytes
+    uploaded_file_content = ""
+    uploaded_file_name = ""
+    uploaded_file_bytes = None
+    return jsonify({"status": "File cleared!"})
+
 @app.route("/chat", methods=["POST"])
 def chat():
+    global uploaded_file_content, uploaded_file_name
+
     user_message = request.json.get("message")
 
     # Add user message to memory
@@ -58,23 +147,39 @@ def chat():
     # Build system message
     system_message = "You are Kia, a friendly assistant who answers general questions simply and clearly. Keep answers short and conversational."
 
-    if should_search(user_message):
+    # If a file was uploaded — add its content
+    if uploaded_file_content:
+        system_message += f"""
+
+The user has uploaded a document called "{uploaded_file_name}".
+Here is the full content:
+
+{uploaded_file_content[:8000]}
+
+Rules for answering:
+- Answer naturally and conversationally in 1-2 lines
+- NEVER say "as mentioned in the document" or "according to the document"
+- NEVER reference section names or page numbers
+- Just answer directly and confidently
+- At the end of every answer add a new line with exactly this: 📄 Source: {uploaded_file_name} → /download-file
+- If the answer is not in the document say "I could not find that in your document"
+- Keep answers short and friendly
+"""
+
+    # If no file but needs web search
+    elif should_search(user_message):
         search_results = search_web(user_message)
         if search_results:
             system_message += f"""
 
-Here is some current information from the web to help you answer:
+Here is some current information from the web:
 
 {search_results}
 
-Use this information naturally in your answer.
-Do NOT say "I searched the web" or "Based on search results".
-Just answer naturally like you already knew this information.
-Keep your answer short, friendly and conversational.
+Use this naturally. Do NOT say you searched the web.
 """
 
     def generate():
-        # Stream response word by word
         full_reply = ""
 
         stream = client.chat.completions.create(
@@ -85,24 +190,20 @@ Keep your answer short, friendly and conversational.
                     "content": system_message
                 }
             ] + conversation_history,
-            stream=True  # This enables streaming!
+            stream=True
         )
 
         for chunk in stream:
-            # Get each word/piece as it arrives
             delta = chunk.choices[0].delta.content
             if delta:
                 full_reply += delta
-                # Send each piece to browser immediately
                 yield f"data: {json.dumps({'token': delta})}\n\n"
 
-        # Save full reply to memory after streaming
         conversation_history.append({
             "role": "assistant",
             "content": full_reply
         })
 
-        # Tell browser streaming is done
         yield f"data: {json.dumps({'done': True})}\n\n"
 
     return Response(

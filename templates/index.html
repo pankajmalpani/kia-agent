@@ -156,9 +156,7 @@
             to { opacity: 1; transform: translateY(0); }
         }
 
-        .message-row.user {
-            flex-direction: row-reverse;
-        }
+        .message-row.user { flex-direction: row-reverse; }
 
         .msg-avatar {
             width: 32px;
@@ -181,7 +179,6 @@
             display: flex;
             align-items: center;
             justify-content: center;
-            font-size: 14px;
             flex-shrink: 0;
             margin-top: 2px;
             color: #666;
@@ -196,19 +193,13 @@
             max-width: 75%;
         }
 
-        .message-row.user .msg-content {
-            align-items: flex-end;
-        }
+        .message-row.user .msg-content { align-items: flex-end; }
 
         .msg-name {
             font-size: 11px;
             font-weight: 600;
             color: #888888;
             padding: 0 4px;
-        }
-
-        .message-row.user .msg-name {
-            text-align: right;
         }
 
         .message {
@@ -224,8 +215,7 @@
             background: #ffffff;
             color: #1a1a1a;
             border-bottom-left-radius: 4px;
-            box-shadow: 0 1px 3px rgba(0,0,0,0.07),
-                        0 1px 2px rgba(0,0,0,0.05);
+            box-shadow: 0 1px 3px rgba(0,0,0,0.07);
             border: 1px solid #f0f0f0;
         }
 
@@ -307,12 +297,53 @@
             color: #f97316;
         }
 
+        /* ── FILE UPLOAD BAR ── */
+        .upload-bar {
+            padding: 8px 16px;
+            background: #f0fdf4;
+            border-top: 1px solid #dcfce7;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .upload-info {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 12px;
+            color: #444444;
+            font-weight: 500;
+        }
+
+        /* ── INPUT ── */
         .chat-input {
             padding: 10px 16px;
             display: flex;
             gap: 10px;
             align-items: center;
             padding-bottom: max(12px, env(safe-area-inset-bottom));
+        }
+
+        .attach-btn {
+            width: 40px;
+            height: 40px;
+            min-width: 40px;
+            border-radius: 50%;
+            background: #f4f4f5;
+            border: 1.5px solid #e8e8e8;
+            font-size: 18px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.2s;
+            flex-shrink: 0;
+        }
+
+        .attach-btn:hover {
+            background: #fff5f0;
+            border-color: #f97316;
         }
 
         .input-wrapper {
@@ -397,16 +428,12 @@
 
         <!-- Messages -->
         <div class="chat-messages" id="messages">
-            <div class="date-divider">
-                <span>Today</span>
-            </div>
+            <div class="date-divider"><span>Today</span></div>
             <div class="message-row">
                 <div class="msg-avatar">✨</div>
                 <div class="msg-content">
                     <div class="msg-name">Kia</div>
-                    <div class="message kia">
-                        Hi! I'm Kia 👋 I can answer any questions, search the web for latest news, and remember our conversation. How can I help you today?
-                    </div>
+                    <div class="message kia">Hi! I'm Kia 👋 I can answer questions, search the web, read your documents, and remember our conversation. How can I help?</div>
                     <div class="msg-time" id="startTime"></div>
                 </div>
             </div>
@@ -414,12 +441,37 @@
 
         <!-- Bottom Bar -->
         <div class="bottom-bar">
+
+            <!-- Clear Buttons -->
             <div class="clear-btn-container">
                 <button class="clear-btn" onclick="clearMemory()">
                     🗑️ Clear conversation
                 </button>
+                <button class="clear-btn" onclick="clearFile()"
+                id="clearFileBtn" style="display:none; margin-left:8px;">
+                    📄 Remove file
+                </button>
             </div>
+
+            <!-- File Upload Status Bar -->
+            <div class="upload-bar" id="uploadBar" style="display:none;">
+                <div class="upload-info">
+                    <span>📄</span>
+                    <span id="uploadFileName">document.pdf</span>
+                    <span id="uploadStatus" style="color:#22c55e;">✓ Ready</span>
+                </div>
+            </div>
+
+            <!-- Input Row -->
             <div class="chat-input">
+                <input type="file" id="fileInput" accept=".pdf,.txt"
+                style="display:none" onchange="handleFileUpload(event)"/>
+
+                <button class="attach-btn"
+                onclick="document.getElementById('fileInput').click()">
+                    📎
+                </button>
+
                 <div class="input-wrapper">
                     <input
                         type="text"
@@ -427,8 +479,10 @@
                         placeholder="Ask Kia anything..."
                     />
                 </div>
-                <button class="send-btn" id="sendBtn" onclick="sendMessage()">➤</button>
+                <button class="send-btn" id="sendBtn"
+                onclick="sendMessage()">➤</button>
             </div>
+
             <div class="powered-by">Powered by Llama AI</div>
         </div>
 
@@ -462,6 +516,7 @@
             });
         }
 
+        // For streaming messages
         function addMessage(text, sender) {
             const row = document.createElement("div");
             row.classList.add("message-row", sender);
@@ -488,6 +543,13 @@
             messages.appendChild(row);
             messages.scrollTop = messages.scrollHeight;
             return row.querySelector(".message");
+        }
+
+        // For instant messages that don't stream
+        function addInstantMessage(text, sender) {
+            const msg = addMessage(text, sender);
+            if (msg) msg.textContent = text;
+            return msg;
         }
 
         function showTyping() {
@@ -551,9 +613,20 @@
                         }
                     }
                 }
+
+                // After streaming done — convert source to clickable link
+                const fullText = kiaMsg.textContent;
+                if (fullText.includes("→ /download-file")) {
+                    const cleanText = fullText.replace(
+                        /📄 Source: (.+?) → \/download-file/g,
+                        '<a href="/download-file" target="_blank" style="color:#f97316;text-decoration:underline;font-weight:600;display:block;margin-top:8px;">📄 $1</a>'
+                    );
+                    kiaMsg.innerHTML = cleanText.replace(/\n/g, '<br>');
+                }
+
             } catch(e) {
                 hideTyping();
-                addMessage("Oops! Something went wrong. Try again!", "kia");
+                addInstantMessage("Oops! Something went wrong. Try again!", "kia");
             }
 
             sendBtn.disabled = false;
@@ -561,6 +634,52 @@
             userInput.focus();
         }
 
+        // Handle file upload
+        async function handleFileUpload(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+
+            document.getElementById("uploadBar").style.display = "flex";
+            document.getElementById("uploadFileName").textContent = file.name;
+            document.getElementById("uploadStatus").textContent = "⏳ Reading...";
+            document.getElementById("uploadStatus").style.color = "#f97316";
+
+            const formData = new FormData();
+            formData.append("file", file);
+
+            try {
+                const response = await fetch("/upload", {
+                    method: "POST",
+                    body: formData
+                });
+
+                const data = await response.json();
+
+                if (data.success) {
+                    document.getElementById("uploadStatus").textContent = "✓ Ready";
+                    document.getElementById("uploadStatus").style.color = "#22c55e";
+                    document.getElementById("clearFileBtn").style.display = "inline-block";
+                    addInstantMessage(data.message, "kia");
+                } else {
+                    document.getElementById("uploadStatus").textContent = "✗ Failed";
+                    document.getElementById("uploadStatus").style.color = "#ef4444";
+                    addInstantMessage("Sorry I couldn't read that file. Try a PDF or TXT!", "kia");
+                }
+            } catch(e) {
+                addInstantMessage("Upload failed. Please try again!", "kia");
+            }
+        }
+
+        // Clear uploaded file
+        async function clearFile() {
+            await fetch("/clear-file", { method: "POST" });
+            document.getElementById("uploadBar").style.display = "none";
+            document.getElementById("clearFileBtn").style.display = "none";
+            document.getElementById("fileInput").value = "";
+            addInstantMessage("File removed! Back to normal chat 👍", "kia");
+        }
+
+        // Clear memory
         async function clearMemory() {
             await fetch("/clear", { method: "POST" });
             messages.innerHTML = "";
@@ -568,7 +687,7 @@
             divider.className = "date-divider";
             divider.innerHTML = "<span>Today</span>";
             messages.appendChild(divider);
-            addMessage("Conversation cleared! Let's start fresh 🧹", "kia");
+            addInstantMessage("Conversation cleared! Let's start fresh 🧹", "kia");
         }
     </script>
 </body>
