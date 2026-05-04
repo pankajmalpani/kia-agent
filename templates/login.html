@@ -1,0 +1,200 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0,
+    maximum-scale=1.0, user-scalable=no">
+    <title>Kia — Login</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        html, body {
+            height: 100%;
+            font-family: 'Inter', Arial, sans-serif;
+            background: #f4f4f5;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .login-container {
+            width: 100%;
+            max-width: 400px;
+            padding: 20px;
+        }
+
+        /* ── CARD ── */
+        .login-card {
+            background: #ffffff;
+            border-radius: 24px;
+            padding: 40px 36px;
+            box-shadow: 0 4px 24px rgba(0,0,0,0.08);
+            border: 1px solid #f0f0f0;
+        }
+
+        /* ── LOGO ── */
+        .login-logo {
+            text-align: center;
+            margin-bottom: 28px;
+        }
+
+        .logo-avatar {
+            width: 64px;
+            height: 64px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, #f97316, #ec4899);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 28px;
+            margin: 0 auto 12px;
+            box-shadow: 0 4px 16px rgba(249,115,22,0.3);
+        }
+
+        .login-logo h1 {
+            font-size: 24px;
+            font-weight: 600;
+            color: #111111;
+        }
+
+        .login-logo p {
+            font-size: 13px;
+            color: #aaaaaa;
+            margin-top: 4px;
+        }
+
+        /* ── FORM ── */
+        .form-group {
+            margin-bottom: 16px;
+        }
+
+        .form-group label {
+            display: block;
+            font-size: 13px;
+            font-weight: 600;
+            color: #444444;
+            margin-bottom: 6px;
+        }
+
+        .form-group input {
+            width: 100%;
+            padding: 12px 16px;
+            border: 1.5px solid #e8e8e8;
+            border-radius: 12px;
+            font-size: 15px;
+            font-family: inherit;
+            color: #1a1a1a;
+            background: #f8f9fb;
+            outline: none;
+            transition: border-color 0.2s;
+        }
+
+        .form-group input:focus {
+            border-color: #f97316;
+            background: #ffffff;
+        }
+
+        /* ── ERROR ── */
+        .error-msg {
+            background: #fff5f5;
+            border: 1px solid #fecaca;
+            color: #dc2626;
+            padding: 10px 14px;
+            border-radius: 10px;
+            font-size: 13px;
+            margin-bottom: 16px;
+            text-align: center;
+        }
+
+        /* ── BUTTON ── */
+        .login-btn {
+            width: 100%;
+            padding: 13px;
+            background: linear-gradient(135deg, #f97316, #ec4899);
+            color: white;
+            border: none;
+            border-radius: 12px;
+            font-size: 15px;
+            font-weight: 600;
+            font-family: inherit;
+            cursor: pointer;
+            transition: all 0.2s;
+            box-shadow: 0 4px 12px rgba(249,115,22,0.3);
+            margin-top: 8px;
+        }
+
+        .login-btn:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 6px 20px rgba(249,115,22,0.4);
+        }
+
+        .login-btn:active {
+            transform: scale(0.98);
+        }
+
+        /* ── FOOTER ── */
+        .login-footer {
+            text-align: center;
+            margin-top: 20px;
+            font-size: 11px;
+            color: #cccccc;
+        }
+    </style>
+</head>
+<body>
+    <div class="login-container">
+        <div class="login-card">
+
+            <!-- Logo -->
+            <div class="login-logo">
+                <div class="logo-avatar">✨</div>
+                <h1>Welcome to Kia</h1>
+                <p>Your personal AI assistant</p>
+            </div>
+
+            <!-- Error Message -->
+            {% if error %}
+            <div class="error-msg">
+                ⚠️ {{ error }}
+            </div>
+            {% endif %}
+
+            <!-- Login Form -->
+            <form method="POST" action="/login">
+                <div class="form-group">
+                    <label>Username</label>
+                    <input
+                        type="text"
+                        name="username"
+                        placeholder="Enter username"
+                        autocomplete="username"
+                        required
+                    />
+                </div>
+                <div class="form-group">
+                    <label>Password</label>
+                    <input
+                        type="password"
+                        name="password"
+                        placeholder="Enter password"
+                        autocomplete="current-password"
+                        required
+                    />
+                </div>
+                <button type="submit" class="login-btn">
+                    Sign In →
+                </button>
+            </form>
+
+        </div>
+        <div class="login-footer">
+            Powered by Llama AI via Groq
+        </div>
+    </div>
+</body>
+</html>

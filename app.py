@@ -1,16 +1,22 @@
 import os
 import fitz  # PyMuPDF
 import io
-from flask import Flask, request, jsonify, render_template, Response, stream_with_context, send_file
+from flask import Flask, request, jsonify, render_template, Response, stream_with_context, send_file, session, redirect, url_for
 from dotenv import load_dotenv
 from groq import Groq
 from tavily import TavilyClient
 import json
+import secrets
 
 load_dotenv()
 
 app = Flask(__name__)
 app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024  # 16MB limit
+app.secret_key = secrets.token_hex(16)  # For session management
+
+# Login credentials from .env
+LOGIN_USERNAME = os.environ.get("LOGIN_USERNAME", "admin")
+LOGIN_PASSWORD = os.environ.get("LOGIN_PASSWORD", "kia2025")
 
 # AI Brain
 api_key = os.environ.get("GROQ_API_KEY")
@@ -27,6 +33,19 @@ conversation_history = []
 uploaded_file_content = ""
 uploaded_file_name = ""
 uploaded_file_bytes = None
+
+def login_required(f):
+    """
+    This is a decorator — it protects routes.
+    If user is not logged in, redirect to login page.
+    """
+    from functools import wraps
+    @wraps(f)
+    def decorated_function(*args, **kwargs):
+        if not session.get("logged_in"):
+            return redirect(url_for("login"))
+        return f(*args, **kwargs)
+    return decorated_function
 
 def should_search(message):
     search_keywords = [
@@ -52,10 +71,6 @@ def search_web(query):
         return ""
 
 def extract_pdf_text_from_bytes(pdf_bytes):
-    """
-    Reads PDF bytes and extracts all text.
-    Returns the text as a string.
-    """
     try:
         pdf_document = fitz.open(stream=pdf_bytes, filetype="pdf")
         full_text = ""
@@ -68,11 +83,46 @@ def extract_pdf_text_from_bytes(pdf_bytes):
     except Exception as e:
         return ""
 
+# ── LOGIN ROUTES ──
+
+@app.route("/login", methods=["GET", "POST"])
+def login():
+    """
+    GET  → Show login page
+    POST → Check credentials
+    """
+    error = None
+
+    if request.method == "POST":
+        username = request.form.get("username")
+        password = request.form.get("password")
+
+        if username == LOGIN_USERNAME and password == LOGIN_PASSWORD:
+            # Save login state in session
+            session["logged_in"] = True
+            session["username"] = username
+            return redirect(url_for("home"))
+        else:
+            error = "Wrong username or password. Try again!"
+
+    return render_template("login.html", error=error)
+
+@app.route("/logout")
+def logout():
+    """Clears session and redirects to login"""
+    session.clear()
+    return redirect(url_for("login"))
+
+# ── MAIN ROUTES ──
+
 @app.route("/")
+@login_required
 def home():
-    return render_template("index.html")
+    return render_template("index.html",
+        username=session.get("username"))
 
 @app.route("/upload", methods=["POST"])
+@login_required
 def upload():
     global uploaded_file_content, uploaded_file_name, uploaded_file_bytes
 
@@ -84,7 +134,6 @@ def upload():
     if file.filename == "":
         return jsonify({"error": "No file selected"}), 400
 
-    # Read file
     if file.filename.endswith(".pdf"):
         file_bytes = file.read()
         uploaded_file_bytes = file_bytes
@@ -100,7 +149,6 @@ def upload():
 
     uploaded_file_name = file.filename
 
-    # Count words and pages
     word_count = len(uploaded_file_content.split())
     page_count = uploaded_file_content.count("--- Page ")
     if page_count == 0:
@@ -112,8 +160,8 @@ def upload():
     })
 
 @app.route("/download-file", methods=["GET"])
+@login_required
 def download_file():
-    """Serves the uploaded file for download"""
     global uploaded_file_bytes, uploaded_file_name
     if not uploaded_file_bytes:
         return "No file uploaded", 404
@@ -125,6 +173,7 @@ def download_file():
     )
 
 @app.route("/clear-file", methods=["POST"])
+@login_required
 def clear_file():
     global uploaded_file_content, uploaded_file_name, uploaded_file_bytes
     uploaded_file_content = ""
@@ -133,21 +182,19 @@ def clear_file():
     return jsonify({"status": "File cleared!"})
 
 @app.route("/chat", methods=["POST"])
+@login_required
 def chat():
     global uploaded_file_content, uploaded_file_name
 
     user_message = request.json.get("message")
 
-    # Add user message to memory
     conversation_history.append({
         "role": "user",
         "content": user_message
     })
 
-    # Build system message
     system_message = "You are Kia, a friendly assistant who answers general questions simply and clearly. Keep answers short and conversational."
 
-    # If a file was uploaded — add its content
     if uploaded_file_content:
         system_message += f"""
 
@@ -166,7 +213,6 @@ Rules for answering:
 - Keep answers short and friendly
 """
 
-    # If no file but needs web search
     elif should_search(user_message):
         search_results = search_web(user_message)
         if search_results:
@@ -212,6 +258,7 @@ Use this naturally. Do NOT say you searched the web.
     )
 
 @app.route("/clear", methods=["POST"])
+@login_required
 def clear():
     conversation_history.clear()
     return jsonify({"status": "Memory cleared!"})

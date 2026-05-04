@@ -4,3 +4,4 @@ python-dotenv
 gunicorn
 tavily-python
 pymupdf
+flask-session
