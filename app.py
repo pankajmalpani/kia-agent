@@ -13,8 +13,9 @@ app = Flask(__name__)
 api_key = os.environ.get("GROQ_API_KEY")
 client = Groq(api_key=api_key)
 
-# Search Tool
-tavily = TavilyClient(api_key=os.environ.get("TAVILY_API_KEY"))
+# Search Tool — optional
+tavily_key = os.environ.get("TAVILY_API_KEY")
+tavily = TavilyClient(api_key=tavily_key) if tavily_key else None
 
 # Kia's Memory
 conversation_history = []
