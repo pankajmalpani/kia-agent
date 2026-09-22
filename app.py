@@ -193,8 +193,10 @@ def chat():
         "content": user_message
     })
 
-    system_message = "You are Kia, a friendly assistant who answers general questions simply and clearly. Keep answers short and conversational."
+    system_message = """You are Kia, a friendly assistant who answers general questions simply and clearly. Keep answers short and conversational.
 
+    You have a built-in real-time web search tool. When web results are provided to you, you have live current information beyond 2024. If asked where you got your information, always say you found it by searching the web in real time. Never say your knowledge is limited to 2024 when you have already retrieved live results."""
+    
     if uploaded_file_content:
         system_message += f"""
 
