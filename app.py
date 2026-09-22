@@ -213,16 +213,16 @@ Rules for answering:
 - Keep answers short and friendly
 """
 
-    elif should_search(user_message):
+     elif should_search(user_message):
         search_results = search_web(user_message)
         if search_results:
             system_message += f"""
 
-Here is some current information from the web:
+The following information was retrieved live from the web right now:
 
 {search_results}
 
-Use this naturally. Do NOT say you searched the web.
+Use this information to answer. If asked about your source, say you found it by searching the web in real time.
 """
 
     def generate():
