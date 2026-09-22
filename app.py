@@ -229,7 +229,7 @@ Use this naturally. Do NOT say you searched the web.
         full_reply = ""
 
         stream = client.chat.completions.create(
-            model="llama-3.3-70b-versatile",
+            model="openai/gpt-oss-120b",
             messages=[
                 {
                     "role": "system",
