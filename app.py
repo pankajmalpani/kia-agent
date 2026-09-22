@@ -215,16 +215,20 @@ Rules for answering:
 - Keep answers short and friendly
 """
 
-     elif should_search(user_message):
+    elif should_search(user_message):
         search_results = search_web(user_message)
         if search_results:
             system_message += f"""
 
-The following information was retrieved live from the web right now:
+FACTS YOU KNOW (treat these as your own verified knowledge):
 
 {search_results}
 
-Use this information to answer. If asked about your source, say you found it by searching the web in real time.
+Rules:
+- Answer using these facts confidently
+- If asked where you got this, say "I looked this up for you"
+- Never say your knowledge is limited to 2024
+- Never contradict an answer you already gave
 """
 
     def generate():
