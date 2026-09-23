@@ -61,15 +61,16 @@ def search_web(query):
     if not tavily:
         return ""
     try:
-        results = tavily.search(query=query, max_results=3)
+        short_query = query[:100]
+        results = tavily.search(query=short_query, max_results=3, search_depth="advanced")
         search_summary = ""
         for result in results["results"]:
             search_summary += f"Source: {result['url']}\n"
             search_summary += f"Info: {result['content']}\n\n"
-        return search_summary
+        return search_summary if search_summary else ""
     except Exception as e:
+        print(f"Search error: {e}")
         return ""
-
 def extract_pdf_text_from_bytes(pdf_bytes):
     try:
         pdf_document = fitz.open(stream=pdf_bytes, filetype="pdf")
